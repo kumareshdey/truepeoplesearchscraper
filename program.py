@@ -19,9 +19,14 @@ import os
 
 @contextmanager
 def get_driver():
-    driver = webdriver.Chrome()
+    chrome_options = Options()
     chrome_options = Options()
     chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--disable-gpu")  # Disable GPU acceleration (useful for headless mode)
+    chrome_options.add_argument("--no-sandbox")  # Bypass OS security model (useful for Docker)
+    chrome_options.add_argument("--disable-dev-shm-usage")  # Overcome limited resource problems
+
+    driver = webdriver.Chrome(options=chrome_options)
     try:
         yield driver
     finally:
@@ -108,7 +113,7 @@ class Truepeoplesearch:
     @staticmethod
     def proxied_request(url):
         PROXY_URL = 'https://proxy.scrapeops.io/v1/'
-        API_KEY = 'b1c5b75c-df6c-4883-80ee-6e9243440058'
+        API_KEY = '77e2b1cb-56ec-4b9c-82c6-22909f19c1e3'
         return requests.get(
             url=PROXY_URL,
             params={
@@ -181,6 +186,7 @@ class Truepeoplesearch:
             emails = Truepeoplesearch.get_emails_after_verifying_address(link, address)
             if emails:
                 return emails
+        return []
 
 def process_row(row, result_excel_file_path):
     log.info(f"Scraping for: {row}")
@@ -214,8 +220,8 @@ def process_row(row, result_excel_file_path):
             pass
 
     df = df.explode("EMAIL", ignore_index=True)
-    # duplicated_rows = df.duplicated(subset=["FIRST_NAME", "LAST_NAME", "STREET", "EMAIL"])
-    # df.loc[duplicated_rows, ["FIRST_NAME", "LAST_NAME", "STREET", "EMAIL"]] = ""
+    duplicated_rows = df.duplicated(subset=["FIRST_NAME", "LAST_NAME", "STREET", "CITY", "DIST", "ZIP"])
+    df.loc[duplicated_rows, ["FIRST_NAME", "LAST_NAME", "STREET", "CITY", "DIST", "ZIP"]] = ""
     log.info(f"Saved to excel: {result_excel_file_path}")
 
     def show_try_again_popup():
@@ -231,15 +237,13 @@ def process_row(row, result_excel_file_path):
                 continue
 
 def main():
-    title = 'Truepoplesearch & usps scraper'
+    title = 'Truepeoplesearch & USPS scraper'
     root = tk.Tk()
     root.geometry("800x800")
     root.title(title)
-    output_file_name = 'email_list.xlsx'
+    output_file_name = 'truepeoplesearch_email_list.xlsx'
     data = ""
     result_excel_file_path = ""
-    username_var = tk.StringVar()
-    password_var = tk.StringVar()
 
     def choose_source_file_path():
         nonlocal data
@@ -255,7 +259,6 @@ def main():
         nonlocal root
         if data and result_excel_file_path:
             root.destroy()
-            pass
         else:
             messagebox.showerror("Error", "Please choose both source and save paths before submitting.")
 
@@ -292,17 +295,24 @@ def main():
     progress_window.title(f"Progress: {title}")
 
     progress_frame = ttk.Frame(progress_window)
-    progress_frame.pack()
+    progress_frame.pack(pady=20)
 
     progress_bar = ttk.Progressbar(progress_frame, orient="horizontal", length=300, mode="determinate")
     progress_bar.grid(row=0, column=0, pady=5)
 
+    progress_label = tk.Label(progress_frame, text="0/0 (0%)")
+    progress_label.grid(row=1, column=0, pady=5)
+
     total_rows = len(df)
 
     for index, row in df.iterrows():
+        finished = index + 1
+        progress = (finished / total_rows) * 100
+        progress_bar["value"] = progress
+        progress_label.config(text=f"{finished}/{total_rows} ({progress:.2f}%)")
+        progress_window.update_idletasks()  # Ensure the UI updates
+
         process_row(row, result_excel_file_path)
-        progress_bar["value"] = (index + 1) * 100 / total_rows
-        progress_bar.update()
 
     progress_window.destroy()
 
