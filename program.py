@@ -22,10 +22,10 @@ import os
 def get_driver():
     chrome_options = Options()
     chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--disable-gpu")  # Disable GPU acceleration (useful for headless mode)
-    chrome_options.add_argument("--no-sandbox")  # Bypass OS security model (useful for Docker)
-    chrome_options.add_argument("--disable-dev-shm-usage")  # Overcome limited resource problems
+    # chrome_options.add_argument("--headless")
+    # chrome_options.add_argument("--disable-gpu")  # Disable GPU acceleration (useful for headless mode)
+    # chrome_options.add_argument("--no-sandbox")  # Bypass OS security model (useful for Docker)
+    # chrome_options.add_argument("--disable-dev-shm-usage")  # Overcome limited resource problems
 
     driver = webdriver.Chrome(options=chrome_options)
     try:
@@ -188,6 +188,7 @@ class Truepeoplesearch:
         return similarity_score >=90
 
     @staticmethod
+    @retry(max_retry_count=3, interval_sec=5)
     def get_emails_after_verifying_address(url, source_address):
         response = Truepeoplesearch.proxied_request(url)
         soup = BeautifulSoup(response.text, 'html.parser')
