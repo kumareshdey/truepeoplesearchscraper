@@ -5,6 +5,7 @@ import requests
 from selenium import webdriver
 import logging
 import warnings
+import time
 from logging import config
 from contextlib import contextmanager
 from selenium.webdriver.common.by import By
@@ -71,6 +72,24 @@ def configure_get_log():
 log = configure_get_log()
 
 
+def retry(max_retry_count, interval_sec):
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            retry_count = 0
+            while retry_count < max_retry_count:
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    retry_count += 1
+                    log.error(f'{func.__name__} failed on attempt {retry_count}: {str(e)}')
+                    if retry_count < max_retry_count:
+                        log.info(f'Retrying {func.__name__} in {interval_sec} seconds...')
+                        time.sleep(interval_sec)
+            log.warning(f'{func.__name__} reached maximum retry count of {max_retry_count}.')
+        return wrapper
+    return decorator
+
+
 class Usps:
     @staticmethod
     def unique_city(city_list):
@@ -86,26 +105,24 @@ class Usps:
         return unique_cities
 
     @staticmethod
+    @retry(max_retry_count=3, interval_sec=5)
     def get_city_from_zipcode(zip):
         log.info(f"Fetching city of zipcode = {zip}")
         with get_driver() as driver:
-            try:
-                driver.get("https://tools.usps.com/zip-code-lookup.htm?citybyzipcode")
-                zip_field = driver.find_element(By.ID, "tZip")
-                zip_field.send_keys(zip)
-                submit = driver.find_element(By.ID, """cities-by-zip-code""")
-                submit.click()
-                wait = WebDriverWait(driver, 10)
-                wait.until(EC.visibility_of_element_located((By.CLASS_NAME, "recommended-cities")))
-                soup = BeautifulSoup(driver.page_source, "lxml")
-                recommended = [text.text for text in soup.find(class_="recommended-cities").find_all(class_="row-detail-wrapper")]
-                others = [text.text for text in soup.find(class_="other-city-names").find_all(class_="row-detail-wrapper")]
-                recommended.extend(others)
-                recommended = Usps.unique_city(recommended)
-                log.info(f"Found cities: {recommended}")
-                return recommended
-            except Exception as e:
-                log.error(f"Error: {e}")
+            driver.get("https://tools.usps.com/zip-code-lookup.htm?citybyzipcode")
+            zip_field = driver.find_element(By.ID, "tZip")
+            zip_field.send_keys(zip)
+            submit = driver.find_element(By.ID, """cities-by-zip-code""")
+            submit.click()
+            wait = WebDriverWait(driver, 20)
+            wait.until(EC.visibility_of_element_located((By.CLASS_NAME, "recommended-cities")))
+            soup = BeautifulSoup(driver.page_source, "lxml")
+            recommended = [text.text for text in soup.find(class_="recommended-cities").find_all(class_="row-detail-wrapper")]
+            others = [text.text for text in soup.find(class_="other-city-names").find_all(class_="row-detail-wrapper")]
+            recommended.extend(others)
+            recommended = Usps.unique_city(recommended)
+            log.info(f"Found cities: {recommended}")
+            return recommended
         
 
 class Truepeoplesearch:
@@ -124,6 +141,7 @@ class Truepeoplesearch:
             },
         )
     @staticmethod
+    @retry(max_retry_count=3, interval_sec=5)
     def get_pople_search_result(name, address):
         base_url = f"{Truepeoplesearch.BASE_URL}/results?"
         # Encode the name and address for use in a URL
@@ -131,13 +149,17 @@ class Truepeoplesearch:
         encoded_address = urllib.parse.quote(address)
         # Construct the full URL
         full_url = f"{base_url}name={encoded_name}&citystatezip={encoded_address}"
+        log.info(f"Url: {full_url}")
         response = Truepeoplesearch.proxied_request(full_url)
+        if response.status_code != 200:
+            raise Exception(f"Status_code: {response.status_code}, Text: {response.text}")
         return response.text
         
     @staticmethod
     def get_links_of_all_results(result):
         soup = BeautifulSoup(result, 'html.parser')
         names = soup.find_all('div', class_='card-summary')
+        log.info(f"Got {len(names)} entries for the search")
         return [Truepeoplesearch.BASE_URL+name.get("data-detail-link") for name in names]
 
     @staticmethod
@@ -185,7 +207,9 @@ class Truepeoplesearch:
         for link in links:
             emails = Truepeoplesearch.get_emails_after_verifying_address(link, address)
             if emails:
+                log.info(f"Got emails {emails}")
                 return emails
+        log.error("Got no emails.")
         return []
 
 def process_row(row, result_excel_file_path):
@@ -197,6 +221,10 @@ def process_row(row, result_excel_file_path):
         city, dist = ' '.join(city[:-1]), city[-1]
         emails = Truepeoplesearch.truepeoplesearch_manager(
             name=" ".join([row["FIRST_NAME"], row["LAST_NAME"]]), 
+            address=" ".join([city, dist, str(row["ZIP"])]))
+        if not emails:
+            emails = Truepeoplesearch.truepeoplesearch_manager(
+            name=" ".join([row["FIRST_NAME"].split(" ")[0], row["LAST_NAME"]]), 
             address=" ".join([city, dist, str(row["ZIP"])]))
         new_row = {
         "FIRST_NAME": row["FIRST_NAME"],
