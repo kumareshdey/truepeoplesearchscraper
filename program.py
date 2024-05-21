@@ -18,7 +18,7 @@ import openpyxl
 import pandas as pd
 import os
 
-from truepoplesearch_scrape.credentials import SCRAPEOPS_CREDS
+from credentials import SCRAPEOPS_CREDS
 
 @contextmanager
 def get_driver():
