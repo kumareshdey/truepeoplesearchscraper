@@ -18,6 +18,8 @@ import openpyxl
 import pandas as pd
 import os
 
+from truepoplesearch_scrape.credentials import SCRAPEOPS_CREDS
+
 @contextmanager
 def get_driver():
     chrome_options = Options()
@@ -130,7 +132,7 @@ class Truepeoplesearch:
     @staticmethod
     def proxied_request(url):
         PROXY_URL = 'https://proxy.scrapeops.io/v1/'
-        API_KEY = '77e2b1cb-56ec-4b9c-82c6-22909f19c1e3'
+        API_KEY = SCRAPEOPS_CREDS
         return requests.get(
             url=PROXY_URL,
             params={
