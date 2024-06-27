@@ -223,16 +223,29 @@ def process_row(row, result_excel_file_path, log: logging):
         }
             rows.append(new_row)
     except:
-        new_row = {
-            "FIRST_NAME": row["FIRST_NAME"],
-            "LAST_NAME": row["LAST_NAME"],
-            "STREET": row["STREET"],
-            "CITY": city,
-            "DIST": dist,
-            "ZIP": row["ZIP"],
-            "EMAIL": [],
-            "STATUS": "ERROR"
-        }
+        try:
+            new_row = {
+                "FIRST_NAME": row["FIRST_NAME"],
+                "LAST_NAME": row["LAST_NAME"],
+                "STREET": row["STREET"],
+                "CITY": city,
+                "DIST": dist,
+                "ZIP": row["ZIP"],
+                "EMAIL": [],
+                "STATUS": "ERROR"
+            }
+        except:
+            new_row = {
+                "FIRST_NAME": row["FIRST_NAME"],
+                "LAST_NAME": row["LAST_NAME"],
+                "STREET": row["STREET"],
+                "CITY": '',
+                "DIST": '',
+                "ZIP": row["ZIP"],
+                "EMAIL": [],
+                "STATUS": "ERROR"
+            }
+
         rows.append(new_row)
     df = pd.DataFrame(rows)
     if os.path.exists(result_excel_file_path):
