@@ -106,18 +106,23 @@ class Truepeoplesearch:
         self.zip = zip
         self.BASE_URL = "https://www.truepeoplesearch.com"
 
-    def proxied_request(self, url):
-        PROXY_URL = 'https://proxy.scrapeops.io/v1/'
-        API_KEY = SCRAPEOPS_CREDS
-        return requests.get(
-            url=PROXY_URL,
-            params={
-                'api_key': API_KEY,
-                'url': url, 
-                # 'residential': 'true', 
-                'country': 'us'
-            },
-        )
+        def proxied_request(self, url, render_js=False):
+            PROXY_URL = 'https://proxy.scrapeops.io/v1/'
+            API_KEY = '77e2b1cb-56ec-4b9c-82c6-22909f19c1e3'
+            while True:
+                response = requests.get(
+                    url=PROXY_URL,
+                    params={
+                        'api_key': API_KEY,
+                        'url': url, 
+                        # 'residential': 'true', 
+                        'country': 'us',
+                        'render_js': render_js
+                    },
+                )
+                if response.status_code in [200, 201]:
+                    break
+            return response
 
     @retry(max_retry_count=3, interval_sec=5)
     def get_pople_search_result(self, name, address):
