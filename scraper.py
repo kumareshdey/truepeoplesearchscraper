@@ -39,19 +39,21 @@ def get_driver():
 def retry(max_retry_count, interval_sec):
     def decorator(func):
         def wrapper(*args, **kwargs):
+            err = ''
             log = args[0].log 
             retry_count = 0
             while retry_count < max_retry_count:
                 try:
                     return func(*args, **kwargs)
                 except Exception as e:
+                    err = e
                     retry_count += 1
                     log.error(f'{func.__name__} failed on attempt {retry_count}: {str(e)}')
                     if retry_count < max_retry_count:
                         log.info(f'Retrying {func.__name__} in {interval_sec} seconds...')
                         time.sleep(interval_sec)
             log.warning(f'{func.__name__} reached maximum retry count of {max_retry_count}.')
-            raise Exception(e)
+            raise Exception(err)
         return wrapper
     return decorator
 
@@ -106,23 +108,24 @@ class Truepeoplesearch:
         self.zip = zip
         self.BASE_URL = "https://www.truepeoplesearch.com"
 
-        def proxied_request(self, url, render_js=False):
-            PROXY_URL = 'https://proxy.scrapeops.io/v1/'
-            API_KEY = '77e2b1cb-56ec-4b9c-82c6-22909f19c1e3'
-            while True:
-                response = requests.get(
-                    url=PROXY_URL,
-                    params={
-                        'api_key': API_KEY,
-                        'url': url, 
-                        # 'residential': 'true', 
-                        'country': 'us',
-                        'render_js': render_js
-                    },
-                )
-                if response.status_code in [200, 201]:
-                    break
+    @retry(max_retry_count=5, interval_sec=2)
+    def proxied_request(self, url, render_js=False):
+        PROXY_URL = 'https://proxy.scrapeops.io/v1/'
+        API_KEY = '77e2b1cb-56ec-4b9c-82c6-22909f19c1e3'
+        response = requests.get(
+            url=PROXY_URL,
+            params={
+                'api_key': API_KEY,
+                'url': url, 
+                # 'residential': 'true', 
+                'country': 'us',
+                'render_js': render_js
+            },
+        )
+        if response.status_code in [200, 201]:
             return response
+        else:
+            raise Exception(f'Proxied request failed. {response.status_code}. {response.text}')
 
     @retry(max_retry_count=3, interval_sec=5)
     def get_pople_search_result(self, name, address):

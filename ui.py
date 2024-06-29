@@ -6,7 +6,7 @@ import traceback
 import pandas as pd
 import logging
 from scraper import process_row
-
+import queue
 
 class Logger(tk.Frame):
     def __init__(self, parent):
@@ -51,7 +51,7 @@ class ExcelProcessorApp:
         self.root.title("Truepeoplesearch scraper")
 
         # Title
-        self.title_label = tk.Label(root, text="Truepeoplesearch scraper", font=("Arial", 24))
+        self.title_label = tk.Label(root, text="Truepeoplesearch scraper", font=("Arial, 24"))
         self.title_label.pack(pady=10)
 
         # Input for source Excel file
@@ -109,6 +109,10 @@ class ExcelProcessorApp:
         ui_handler.setFormatter(formatter)
         self.logger.addHandler(ui_handler)
 
+        # Task queue
+        self.task_queue = queue.Queue()
+        self.root.after(100, self.process_queue)
+
     def browse_source_file(self):
         file_path = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx *.xls")])
         if file_path:
@@ -133,10 +137,10 @@ class ExcelProcessorApp:
 
     def process_excel_thread(self, source_file, dest_file):
         try:
-            self.submit_button.config(state='disabled')
-            self.progress['value'] = 0
-            self.progress_label.config(text="0% (0/0)")
-            self.logger.info("Starting Excel processing...")
+            self.task_queue.put(("submit_button_state", "disabled"))
+            self.task_queue.put(("progress", 0))
+            self.task_queue.put(("progress_label", "0% (0/0)"))
+            self.logger.info(f"Starting Excel processing. Source path: {source_file}. Dest path: {dest_file}")
 
             # Read the source Excel file
             df = pd.read_excel(source_file)
@@ -158,21 +162,32 @@ class ExcelProcessorApp:
                         if not show_try_again_popup():
                             continue
                 progress_percentage = (index + 1) / total_rows * 100
-                self.progress['value'] = progress_percentage
-                self.progress_label.config(text=f"{progress_percentage:.2f}% ({index + 1}/{total_rows})")
-                self.root.update_idletasks()
+                self.task_queue.put(("progress", progress_percentage))
+                self.task_queue.put(("progress_label", f"{progress_percentage:.2f}% ({index + 1}/{total_rows})"))
 
             self.logger.info("Excel processing completed.")
-            messagebox.showinfo("Info", "Excel processing completed successfully.")
+            self.task_queue.put(("messagebox", ("Info", "Excel processing completed successfully.")))
         except Exception as e:
             self.logger.error("Error occurred: %s", str(e))
             self.logger.error(traceback.format_exc())
-            messagebox.showerror("Error", str(e))
+            self.task_queue.put(("messagebox", ("Error", str(e))))
         finally:
-            self.submit_button.config(state='normal')
-            self.progress['value'] = 100
-            self.progress_label.config(text=f"100% ({total_rows}/{total_rows})")
-            self.root.quit()  # Close the program after completion
+            self.task_queue.put(("submit_button_state", "normal"))
+            self.task_queue.put(("progress", 100))
+            self.task_queue.put(("progress_label", f"100% ({total_rows}/{total_rows})"))
+
+    def process_queue(self):
+        while not self.task_queue.empty():
+            task = self.task_queue.get()
+            if task[0] == "submit_button_state":
+                self.submit_button.config(state=task[1])
+            elif task[0] == "progress":
+                self.progress['value'] = task[1]
+            elif task[0] == "progress_label":
+                self.progress_label.config(text=task[1])
+            elif task[0] == "messagebox":
+                messagebox.showinfo(task[1][0], task[1][1])
+        self.root.after(100, self.process_queue)
 
 
 if __name__ == "__main__":
