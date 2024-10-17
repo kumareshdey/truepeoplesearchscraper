@@ -28,7 +28,7 @@ def get_driver():
     chrome_options.add_argument("--disable-gpu")  # Disable GPU acceleration (useful for headless mode)
     chrome_options.add_argument("--no-sandbox")  # Bypass OS security model (useful for Docker)
     chrome_options.add_argument("--disable-dev-shm-usage")  # Overcome limited resource problems
-
+    chrome_options.add_argument("blink-settings=imagesEnabled=false")
     driver = webdriver.Chrome(options=chrome_options)
     try:
         yield driver
@@ -195,11 +195,11 @@ class Truepeoplesearch:
         return []
 
 def process_row(row, result_excel_file_path, log: logging):
+    rows = []
     try:
         log.info(f"Scraping for: {row}")
         usps = Usps(zip=row["ZIP"], log=log)
         cities = usps.get_city_from_zipcode()
-        rows = []
         for city in cities:
             city = city.split(" ")
             city, dist = ' '.join(city[:-1]), city[-1]
