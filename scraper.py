@@ -111,7 +111,7 @@ class Truepeoplesearch:
     @retry(max_retry_count=5, interval_sec=2)
     def proxied_request(self, url, render_js=False):
         PROXY_URL = 'https://proxy.scrapeops.io/v1/'
-        API_KEY = '77e2b1cb-56ec-4b9c-82c6-22909f19c1e3'
+        API_KEY = SCRAPEOPS_CREDS
         response = requests.get(
             url=PROXY_URL,
             params={
