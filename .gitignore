@@ -3,3 +3,6 @@
 test*
 credential*
 *pycache*
+*.xlsx
+build*
+dist*
